@@ -1,5 +1,5 @@
 
-// General
+// Standard headers
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <pthread.h> // Link -lpthread
 
+
 // Networking
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -18,8 +19,41 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 
-// Custom
-#include "ros_simulator_settings.h"
+
+/*
+ *******************************************************************************
+ *                             Symbolic Constants                              *
+ *******************************************************************************
+*/
+
+// Maximum number of tasks
+#define MAX_TASK_COUNT          4
+
+// Depth of a callback queue
+#define TASK_MSG_QUEUE_DEPTH    16
+
+// Maximum supported of pollable file-descriptors
+#define MAX_POLLABLE_FDS        8
+
+
+/*
+ *******************************************************************************
+ *                              Type Definitions                               *
+ *******************************************************************************
+*/
+
+// Type describing a message
+typedef struct {
+	uint8_t prio;
+	uint8_t data;
+} msg_t;
+
+// Type describing a task
+typedef struct {
+	void (*callback)(void *msg);
+	off_t queue_index;
+	msg_t queue[TASK_MSG_QUEUE_DEPTH];
+} task_t;
 
 /*
  *******************************************************************************
@@ -27,7 +61,9 @@
  *******************************************************************************
 */
 
+// Pointer to currently active thread
 
+// 
 /*
  *******************************************************************************
  *                              Utility Routines                               *
@@ -198,31 +234,6 @@ int scheduler (uint8_t *message, task_t *tasks)
 void context_switch (int task_id, task_t *tasks)
 {
 	printf("Context-switch (%d, tasks)\n", task_id);
-
-	// Is current task this task? 
-
-	// Yes: continue
-
-	// No: signal stop
-    // - Does current task have a paused thread? 
-    // - No: create, set, launch
-    // - Yes: resume thread
-
-    // Race conditions: 
-    // At the end of the execution the busy thread may have to unset itself. 
-    // In order to safely modify tasks list a mutex might be needed
-}
-
-// Debug 
-void show_task_queue_state (task_t *tasks)
-{
-	for (off_t i = 0; i < MAX_TASK_COUNT; ++i) {
-		printf("%lld {.queue_index = %llu, .queue = {", i, tasks[i].queue_index);
-		for (off_t j = 0; j < tasks[i].queue_index; ++j) {
-			printf("[%u,%u] ", tasks[i].queue[j].prio, tasks[i].queue[j].data);
-		}
-		printf("}}\n");
-	}
 }
 
 void generic_callback (void *msg)
@@ -252,7 +263,6 @@ int main (void)
 	// Configure callbacks
 	for (off_t i = 0; i < MAX_TASK_COUNT; ++i) {
 		tasks[i] = (task_t){
-			.thread_id = pthread_self(),
 			.callback = generic_callback, 
 			.queue_index = 0, 
 			.queue = {{0,0}}
@@ -320,7 +330,6 @@ int main (void)
 					fds[--fd_index].fd = -1;
 				} else {
 					context_switch(scheduler(message, tasks), tasks);
-					show_task_queue_state(tasks);
 				}
 			}
 		}
