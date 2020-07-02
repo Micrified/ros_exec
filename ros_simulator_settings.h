@@ -38,7 +38,7 @@ typedef struct {
 
 // Type describing a task
 typedef struct {
-	pthread_t thread_id;                // ID returned from pthread_create
+	int pid;                            // ID returned from fork
 	void (*callback)(void *msg);        // Callback to execute in said thread
 	off_t queue_index;                  // Amount of pending instances to run
 	msg_t queue[TASK_MSG_QUEUE_DEPTH];  // Queue holding message data to run

@@ -161,7 +161,7 @@ int scheduler (uint8_t *message, task_t *tasks)
 		return -1;
 	}
 
-	// Push message data onto queue
+	// Push message data onto queue (front is head)
 	if (tasks[id].queue_index < TASK_MSG_QUEUE_DEPTH) {
 		tasks[id].queue[tasks[id].queue_index++] = (msg_t){.prio = prio, .data = data};
 	} else {
@@ -169,7 +169,7 @@ int scheduler (uint8_t *message, task_t *tasks)
 			__FILE__, __LINE__, id);
 	}
 
-	// Find the highest priority task to run (lowest number is highest prio)
+	// Find the highest priority task to run (highest number is highest prio)
 	off_t highest_prio_task_index = -1;
 	for (off_t i = 0; i < MAX_TASK_COUNT; ++i) {
 
@@ -197,9 +197,76 @@ int scheduler (uint8_t *message, task_t *tasks)
 // Context switching
 void context_switch (int task_id, task_t *tasks)
 {
+	int pid = -1;
+
 	printf("Context-switch (%d, tasks)\n", task_id);
 
-	// Is current task this task? 
+	// If nothing to run - then return
+	if (task_id == -1) {
+		return;
+	}
+
+
+	// Fork a thread and run the code
+	if ((pid = fork()) == 0) {
+
+		// No need to lock, now process is a copy
+
+		// Update task information 
+		tasks[task_id].pid = getpid();
+
+		// Prepare data to call given task with
+		msg_t *data_ptr = tasks[task_id].queue[0];
+
+		// Copy data
+		msg_t *data_cpy = malloc(sizeof(msg_t));
+		memcpy(data_cpy, data_ptr, sizeof(msg_t));
+
+		// Execute callback
+		tasks[task_id].callback(data_cpy);
+
+		// Free data
+		free(data_cpy);
+
+		// Exit successfully
+		exit(EXIT_SUCCESS);
+	} else {
+
+		// Set the global PID
+		sem_wait(&g_mutex);
+		g_task_id
+	}
+
+	// Lock global thread variable
+	sem_wait(&g_mutex);
+
+	// Is current task this task? Resume it
+	if (g_task_id == task_id) {
+		kill(tasks[g_task_id].pid, SIGCONT);
+		return;
+	}
+
+	// Otherwise: If current task is set - pause it; else create + set + launch
+	if (g_task_id != -1) {
+		kill(tasks[g_task_id].pid, SIGSTOP);
+	} else {
+
+		// Release mutex prior to fork
+		sem_post(&g_mutex);
+
+		// Fork a copy
+		int pid = -1;
+		if ((pid = fork()) == 0) {
+
+			// Invoke the callback
+			tasks[g_task_id].callback(NULL);
+
+			// Exit 
+		}
+	}
+
+
+	sem_post(&g_mutex);
 
 	// Yes: continue
 
@@ -213,6 +280,18 @@ void context_switch (int task_id, task_t *tasks)
     // In order to safely modify tasks list a mutex might be needed
 }
 
+void generic_callback (void *tasks)
+{
+
+	// Unset self as global running task
+	sem_wait(&g_mutex);
+	g_task_id = -1;
+	sem_post(&g_mutex);
+
+	// Call scheduler
+	context_switch(scheduler(), (task_t *)tasks);
+}
+
 // Debug 
 void show_task_queue_state (task_t *tasks)
 {
@@ -223,11 +302,6 @@ void show_task_queue_state (task_t *tasks)
 		}
 		printf("}}\n");
 	}
-}
-
-void generic_callback (void *msg)
-{
-
 }
 
 
@@ -252,7 +326,7 @@ int main (void)
 	// Configure callbacks
 	for (off_t i = 0; i < MAX_TASK_COUNT; ++i) {
 		tasks[i] = (task_t){
-			.thread_id = pthread_self(),
+			.pid = -1,
 			.callback = generic_callback, 
 			.queue_index = 0, 
 			.queue = {{0,0}}
