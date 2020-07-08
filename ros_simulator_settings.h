@@ -30,18 +30,18 @@
  *******************************************************************************
 */
 
-// Type describing a message
+// Structure: Task data definition
 typedef struct {
 	uint8_t prio;
 	uint8_t data;
-} msg_t;
+} data_t;
 
-// Type describing a task
+// Structure: Task definition
 typedef struct {
-	int pid;                            // ID returned from fork
-	void (*callback)(void *msg);        // Callback to execute in said thread
-	off_t queue_index;                  // Amount of pending instances to run
-	msg_t queue[TASK_MSG_QUEUE_DEPTH];  // Queue holding message data to run
+	pid_t pid;
+	void (*cb)(void *data);
+	off_t queue_len;
+	data_t queue[TASK_MSG_QUEUE_DEPTH];
 } task_t;
 
 #endif
