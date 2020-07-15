@@ -5,8 +5,22 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <semaphore.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "ros_exec_shm.h"
+
+
+typedef struct {
+	uint8_t prio;
+	uint8_t data;
+} task_data_t;
+
+typedef struct {
+	pid_t pid; 
+	void (*cb) (void *data);
+
+} task_t;
 
 typedef struct shm_data {
 	sem_t sem;

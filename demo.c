@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <semaphore.h>
 #include <math.h>
+#include <pthread_np.h>
 
 #define SHARE_THREADS   0
 #define SHARE_PROCESSES 1
