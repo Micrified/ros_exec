@@ -67,6 +67,16 @@ queue_t *make_queue (size_t capacity, uint8_t *(*alloc)(size_t),
 \*/
 int enqueue (void *elem_p, queue_t *queue_p);
 
+
+/*\
+ * @brief Returns a pointer to the oldest element of the queue
+ * @note Does not dequeue the element.
+ * @param elem_p_p Pointer at which to copy element pointer 
+ * @param queue_p Pointer to queue
+ * @return Zero on success; 1 on bad param; 2 on no data
+\*/
+int peek (void **elem_p_p, queue_t *queue_p);
+
 /*\
  * @brief Removes an element from the queue
  * @param elem_p_p Pointer at which to copy dequeued element pointer

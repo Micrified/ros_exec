@@ -61,6 +61,28 @@ int enqueue (void *elem_p, queue_t *queue_p)
 	return 0;
 }
 
+int peek (void **elem_p_p, queue_t *queue_p)
+{
+	// Parameter check
+	if (queue_p == NULL || elem_p_p == NULL) {
+		return 1;
+	}
+
+	// Capacity check
+	if (queue_p->len <= 0) {
+		return 2;
+	}
+
+	// Compute dequeue index
+	int i = queue_p->ptr, len = queue_p->len, cap = queue_p->cap;
+	int index = ((i - len) % cap + cap) % cap;
+
+	// Assign element pointer
+	*elem_p_p = queue_p->array[index];
+
+	return 0;
+}
+
 
 int dequeue (void **elem_p_p, queue_t *queue_p)
 {

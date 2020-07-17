@@ -37,6 +37,7 @@ void show (void * const elem)
 
 int main (void)
 {
+	void *elem_p = NULL;
 	int err = 0;
 	const char *strings[10] = {
 		"Apple",
@@ -79,8 +80,28 @@ int main (void)
 	// Begin dequeuing ... 
 	printf("---- Now dequeuing! ----\n");
 
-	// Dequeue everything
-	void *elem_p = NULL;
+
+	// Dequeue a few 
+	for (int i = 0; i < 3; ++i) {
+		dequeue(&elem_p, queue_p);
+		printf("Pointer: [%p\n] :: ", (char * const)elem_p);
+		printf("Dequeued [%p] \"%s\"\n", (char * const)elem_p, (char * const)elem_p);
+	}
+
+	// Dequeue everything 
+	printf("---- Enquing a bit ----\n");
+	for (int i = 0; i < 2; ++i) {
+		if ((err = enqueue((void *)strings[i], queue_p)) != 0) {
+			printf("Err: Couldn't enqueue (%d)\n", err);
+			return EXIT_FAILURE;
+		} else {
+			printf("Enqueued [%p]: \"%s\"\n", strings[i], strings[i]);
+		}
+	}
+
+	// Begin dequeuing ... 
+	printf("---- Now ending! ----\n");
+
 	while (dequeue(&elem_p, queue_p) == 0) {
 		printf("Pointer: [%p\n] :: ", (char * const)elem_p);
 		printf("Dequeued [%p] \"%s\"\n", (char * const)elem_p, (char * const)elem_p);

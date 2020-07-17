@@ -7,34 +7,97 @@
 #include <semaphore.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #include "ros_exec_shm.h"
+#include "ros_queue.h"
+#include "ros_task_set.h"
+#include "ros_static_allocator.h"
 
 
-typedef struct {
-	uint8_t prio;
-	uint8_t data;
-} task_data_t;
+/*
+ *******************************************************************************
+ *                              Global Variables                               *
+ *******************************************************************************
+*/
 
-typedef struct {
-	pid_t pid; 
-	void (*cb) (void *data);
 
-} task_t;
+// Access semaphore 
+sem_t g_sem;
 
-typedef struct shm_data {
-	sem_t sem;
-	int sum;
-} shm_data;
+// Shared memory pointer
+void *g_shm;
+
+// Allocator
+static_allocator_t *g_allocator;
+
+// Task set
+task_set_t *g_task_set;
+
+// PID of self-process
+pid_t g_pid = -1;
+
+
+/*
+ *******************************************************************************
+ *                              Support Functions                              *
+ *******************************************************************************
+*/
+
+
+uint8_t *alloc (size_t size)
+{
+	if (g_allocator != NULL) {
+		return static_alloc(g_allocator, size);
+	} else {
+		return NULL;
+	}
+}
+
+void release (uint8_t *ptr)
+{
+	if (g_allocator != NULL) {
+		static_free(g_allocator, ptr);
+	}
+}
+
+
+/*
+ *******************************************************************************
+ *                               Task Procedure                                *
+ *******************************************************************************
+*/
+
+
+void task_routine (uint8_t task_id)
+{
+	do {
+		// Self suspend
+		printf("Process %d going to sleep ... zzz\n", g_pid);
+		kill(g_pid, SIGSTOP);
+
+		// Run code
+		switch (task_id) {
+			
+		}
+	} while (1);
+}
+
+/*
+ *******************************************************************************
+ *                                    Main                                     *
+ *******************************************************************************
+*/
+
 
 int main (int argc, char *argv[])
 {
-	pid_t status = -1, pid = -1;
-	const char *shm_map_name = "ros_exec_shm";
-	size_t shm_map_size = 4096;
-	void *shm_ptr = NULL;
-	bool is_owner = true;
-	shm_data *data_ptr = NULL;
+	// Configuration
+	const char *shm_map_name  = "ros_exec_shm";
+	const size_t shm_map_size = 8192;
+	pid_t status, pid = -1;
+	int n_tasks = -1;
+	size_t task_queue_size = 5;
 
 	// Check argument count
 	if (argc != 2) {
@@ -43,57 +106,49 @@ int main (int argc, char *argv[])
 	}
 
 	// Read number of forks
-	int n = atoi(argv[1]);
+	n_tasks = atoi(argv[1]);
+
+	printf("Process Count:\t\t%d\n", n_tasks);
 
 	// Initialize shared memory
-	if ((shm_ptr = map_shared_memory(
+	if ((g_shm = map_shared_memory(
 		shm_map_name,
 		shm_map_size,
 		is_owner)) == NULL)
 	{
 		return EXIT_FAILURE;
-	} else {
-
-		// Set up data pointer
-		data_ptr = (shm_data *)shm_ptr;
-
-		// Initialize semaphore
-		if (sem_init(&(data_ptr->sem), 1, 1) == -1) {
-			perror("sem_init");
-			return EXIT_FAILURE;
-		}
-
-		// Initialize value
-		data_ptr->sum = 0;
 	}
 
-	printf("Shared memory created - forking!\n");
+	printf("Shared Memory:\t\tReady\n");
+
+	// Initialize static allocator
+	g_allocator = install_static_allocator(g_shm, shm_map_size);
+
+	printf("Static Allocator:\t\tReady\n");
+
+	// Initialize task set
+	g_task_set = make_task_set(n_tasks, task_queue_size, alloc, release);
+
+	printf("Task Data Set:\t\tReady\n");
+
 
 	// Fork some processes
-	for (int i = 1; i < n; ++i) {
-		if ((pid = fork()) == 0) {
+	for (off_t i = 1; i < n_tasks; ++i) {
+		if ((g_pid = fork()) == 0) {
 
 			// Update self PID
-			pid = getpid();
+			g_pid = getpid();
 
 			// Print message
-			printf("Hello from PID %d holding %i!\n", 
-				getpid(), i);
+			printf("Process (%d) for task %lu!\n", 
+				getpid(), i - 1);
 
-			// Set as child
-			is_owner = false;
+			// Run the task procedure
+			task_routine();
 
-			// Get shared semaphore
-			sem_wait(&(data_ptr->sem));
-
-			// Add value of 'i' to it
-			data_ptr->sum += i;
-
-			// Release shared semaphore
-			sem_post(&(data_ptr->sem));
-
-			// Jump to the end
-			goto end;
+			// Should never reach here
+			fprintf(stderr, "ILLEGAL POINT!\n");
+			return EXIT_FAILURE;
 		}
 	}
 
