@@ -16,7 +16,7 @@
 */
 
 // Maximum number of tasks
-#define MAX_TASK_COUNT          4
+#define MAX_TASK_COUNT          3
 
 // Depth of a callback queue
 #define TASK_MSG_QUEUE_DEPTH    16

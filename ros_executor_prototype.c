@@ -1,4 +1,6 @@
 #define _POSIX_SOURCE
+
+// Standard Headers
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,11 +14,24 @@
 #include <inttypes.h>
 #include <math.h>
 
+// Networking
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
+
+// Multithreading/Polling
+#include <poll.h>
+#include <pthread.h>
+
+// Data Structures
 #include "ros_exec_shm.h"
 #include "ros_queue.h"
 #include "ros_task_set.h"
 #include "ros_static_allocator.h"
-
+#include "ros_inet.h"
 
 /*
  *******************************************************************************
@@ -25,7 +40,9 @@
 */
 
 
+// Capacity of the stack for preemptable tasks
 #define MAX_PREEMPTABLE_TASKS        255
+
 
 /*
  *******************************************************************************
@@ -109,7 +126,8 @@ void task_callback (void *data)
 		sum += isPrime(n);
 	}
 
-	printf("[%d] Sum = %d\n", g_pid, sum);
+	uint8_t *data_value_ptr = (uint8_t *)data;
+	printf("[%d] (data = %d) Sum = %d\n", g_pid, *data_value_ptr, sum);
 }
 
 
@@ -168,6 +186,78 @@ void task_routine (off_t task_id)
 	} while (1);
 }
 
+
+void scheduler (uint8_t *message)
+{
+	// Task Stack
+	static off_t task_stack[MAX_PREEMPTABLE_TASKS];
+	static off_t task_stack_index = 0;
+
+	off_t running_task_id = -1;
+	off_t highest_prio_task_id = -1;
+	int err;
+
+
+	// If message is NULL; Simply check if anything is ready to run 
+	if (message == NULL) {
+
+		// **** Critical Section ****
+		sem_wait(&(g_task_set->sem));
+
+		running_task_id = g_task_set->current_running_task_id;
+
+		sem_post(&(g_task_set->sem));
+		// **************************
+
+		// If the task ID is not set; check the stack and resume anything on it
+		if (running_task_id == -1 && task_stack_index > 0) {
+			off_t task_to_resume = task_stack[task_stack_index - 1];
+			printf("[%d] Resuming %ld\n", g_pid, task_to_resume);
+			kill(g_task_set->tasks[task_to_resume].pid, SIGCONT);
+			task_stack_index--;
+		}
+
+		return;
+	}
+
+	// Decode message
+	uint8_t task_id   = message[0];
+	uint8_t task_prio = message[1];
+	uint8_t task_data = message[2];
+
+	// **** Critical Section ****
+	sem_wait(&(g_task_set->sem));
+
+	// Push callback into shared queue
+	if ((err = enqueue_callback_for_task(task_id, task_prio, 1, &task_data, 
+		g_task_set)) != 0)
+	{
+		fprintf(stderr, "Err: Unable to enqueue task data (%d)\n",
+			err);
+	}
+
+	// Locate highest priority task to run
+	highest_prio_task_id = get_highest_prio_task_index(g_task_set);
+
+	// Extract running task ID
+	running_task_id = g_task_set->current_running_task_id;
+	printf("[%d] Will pause %ld, run %ld\n", g_pid, running_task_id,
+		highest_prio_task_id);
+	sem_post(&(g_task_set->sem));
+	// **************************
+
+	// Signal current running task to stop if exists
+	if (running_task_id != -1) {
+		kill(g_task_set->tasks[running_task_id].pid, SIGSTOP);
+		task_stack[task_stack_index++] = running_task_id;
+	}
+
+	// Signal highest priority task to run (if exists)
+	if (highest_prio_task_id != -1) {
+		kill(g_task_set->tasks[highest_prio_task_id].pid, SIGCONT);
+	}
+}
+
 /*
  *******************************************************************************
  *                                    Main                                     *
@@ -183,8 +273,11 @@ int main (int argc, char *argv[])
 	pid_t status, pid = -1;
 	int err, n_tasks = -1;
 	size_t task_queue_size = 5;
-	off_t task_stack[MAX_PREEMPTABLE_TASKS];
-	off_t task_stack_index = 0;
+
+	// Networking
+	off_t fd_index = 0;
+	int sock_listen = -1;
+	uint8_t message[3] = {0};
 
 	// Check argument count
 	if (argc != 2) {
@@ -243,65 +336,79 @@ int main (int argc, char *argv[])
 		}
 	}
 
+
+	// Get pollable file-descriptor set
+	struct pollfd *fds = get_new_pollable_fds();
+
 	// Init network configuration
-	// TODO
+	if ((sock_listen = get_bound_socket("5577")) == -1) {
+		fprintf(stderr, "%s:%d: Listener socket could not be created!\n",
+			__FILE__, __LINE__);
+		goto end;
+	} else {
+		fprintf(stdout, "Created a listener socket!\n");
+	}
 
-	do {
-		off_t running_task_id = -1;
-		char *dummy_data = "Foo";
-		off_t task_select = -1;
-		int prio_select = -1;
-		printf("Select task to invoke: ");
-		scanf("%ld", &task_select);
+	// Register the listener socket to the polling loop for reading (index 0)
+	fds[fd_index++] = (struct pollfd) {
+		.fd = sock_listen,
+		.events = POLLIN, 
+		.revents = 0
+	};
 
-		printf("Assign callback priority (0-255): ");
-		scanf("\n%d", &prio_select);
-		prio_select = (prio_select + 0xFF) % 0xFF;
+	// Listen actively on the socket
+	if (listen(sock_listen, 10) == -1) {
+		fprintf(stderr, "%s:%d: Unable to listen on socket!\n", 
+			__FILE__, __LINE__);
+		goto end;
+	} else {
+		fprintf(stdout, "Listening on socket!\n");
+	}
 
-		printf("Okay, pushing cb for task %lu at prio %d\n", 
-			task_select, prio_select);
+	// Poll loop (1ms before executes without waiting)
+	while ((err = poll(fds,	fd_index, 0)) != -1) {
 
-		// **** Critical section ****
-		sem_wait(&(g_task_set->sem));
-		if ((err = enqueue_callback_for_task(task_select, prio_select,
-			strlen(dummy_data) + 1, dummy_data, g_task_set)) != 0)
-		{
-			fprintf(stderr, "Err: Unable to enqueue task data (%d)\n",
-				err);
+		// If nothing is ready then perform clean up
+		if (err == 0) {
+			scheduler(NULL);
+			continue;
 		}
 
-		// Find highest priority task
-		int task_to_run = get_highest_prio_task_index(g_task_set);
+		// Locate sockets with work to do
+		for (off_t i = 0; i < fd_index; ++i) {
 
-		// Extract running task ID
-		running_task_id = g_task_set->current_running_task_id;
+			// Skip those with no pending work
+			if ((fds[i].revents & POLLIN) == 0) {
+				continue;
+			}
 
-		// Show information
-		// printf("----- Task Set: Global -----\n");
-		// show_task_set(g_task_set);
-		// printf("----------------------------\n");
-		// Print update
-		printf("Suspending %ld, resuming %d\n",
-			running_task_id, task_to_run);
+			// Accept connections if the listener socket
+			if (i == 0) {
+				if (fd_index >= MAX_POLLABLE_FDS) {
+					fprintf(stderr, "%s:%d: At connection capacity!\n",
+						__FILE__, __LINE__);
+				} else {
+					fds[fd_index++] = on_new_connection(fds[0].fd);					
+				}
+			} else {
 
-		sem_post(&(g_task_set->sem));
-		// **** END critical section ****
-
-		// Signal current running task to stop if exists
-		if (running_task_id != -1) {
-			kill(g_task_set->tasks[running_task_id].pid, SIGSTOP);
-			task_stack[task_stack_index++] = running_task_id;
+				// Close connection on error and update table
+				if (on_message(fds[i].fd, message) != 0) {
+					fprintf(stdout, "Disconnecting client!\n");
+					close(fds[i].fd);
+					for (off_t j = i + 1; j < fd_index; ++j) {
+						fds[j - 1] = fds[j];
+					}
+					fds[--fd_index].fd = -1;
+				} else {
+					scheduler(message);
+				}
+			}
 		}
-
-		// Signal task to run to run
-		kill(g_task_set->tasks[task_to_run].pid, SIGCONT);
-
-
-	} while (1);
+	}
 
 	// Wait for child forks
 	while ((pid = wait(&status)) > 0);
-
 
 	// Destroy the task set
 	if ((err = destroy_task_set(g_task_set)) != 0) {

@@ -140,7 +140,7 @@ int static_free (static_allocator_t *static_allocator, uint8_t *block_ptr)
 	b = (block_h *)block_ptr - 1;
 
 	// Update available memory size
-	printf("[Adding %zu bytes]\n", b->d.size * unit_size);
+	//printf("[Adding %zu bytes]\n", b->d.size * unit_size);
 	static_allocator->free_memory_size += b->d.size * unit_size;
 
 	// Find insertion location for block

@@ -270,7 +270,7 @@ int main (void)
 	}
 
 	// Start the listener socket using 4290
-	if ((sock_listen = get_bound_socket("4290")) == -1) {
+	if ((sock_listen = get_bound_socket("5577")) == -1) {
 		fprintf(stderr, "%s:%d: Listener socket could not be created!\n",
 			__FILE__, __LINE__);
 		goto exit;

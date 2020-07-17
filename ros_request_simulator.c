@@ -68,17 +68,18 @@ int main (void)
 	const long nano_range_max = 999999999;
 
 	// Connection details
-	const char *addr = "0.0.0.0", *port = "4290";
+	const char *addr = "0.0.0.0", *port = "5577";
 
 	// Attempt to connect socket
 	if ((socket = get_connected_socket(addr, port)) == -1) {
+		fprintf(stderr, "Unable to connect!\n");
 		return EXIT_FAILURE;
 	}
 
 	// Dispatch message
 	uint8_t message[3] = {0};
 
-	for (off_t i = 0; i < 10; ++i) {
+	for (off_t i = 0; i < 3; ++i) {
 
 		// Build random sleep time
 		struct timespec delay = (struct timespec) {
@@ -87,7 +88,7 @@ int main (void)
         };
 
         // Build random message
-        message[0] = rand() % 255 % MAX_TASK_COUNT; // ID
+        message[0] = i; //rand() % 255 % MAX_TASK_COUNT; // ID
         message[1] = rand() % 255;                  // prio
         message[2] = rand() % 255;                  // data
 
