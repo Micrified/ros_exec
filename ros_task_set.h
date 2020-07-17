@@ -56,6 +56,7 @@ typedef struct {
 // Structure: Describes a task set
 typedef struct {
 	sem_t sem;                            // Interprocess access semaphore
+	off_t current_running_task_id;        // ID of the current task (signed)
 	size_t len;                           // Number of tasks
 	size_t queue_depth;                   // Depth of the task data queues
 	task_t *tasks;                        // Task element array

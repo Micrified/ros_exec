@@ -70,6 +70,7 @@ task_set_t *make_task_set (size_t len, size_t queue_depth,
 	}
 
 	// Configure the task set
+	task_set_p->current_running_task_id = -1;
 	task_set_p->len     = len;
 	task_set_p->tasks   = tasks;
 	task_set_p->alloc   = alloc;
@@ -201,6 +202,8 @@ int enqueue_callback_for_task (off_t task_id, uint8_t prio, size_t data_size, vo
 int dequeue_callback_for_task (off_t task_id, task_callback_t **task_callback_p_p,
 	task_set_t *task_set_p)
 {
+	int err;
+
 	// Parameter check
 	if (task_callback_p_p == NULL || task_set_p == NULL) {
 		fprintf(stderr, "%s:%d: Null parameters!\n", __FILE__, __LINE__);
@@ -218,8 +221,9 @@ int dequeue_callback_for_task (off_t task_id, task_callback_t **task_callback_p_
 	task_t *task = task_set_p->tasks + task_id;
 
 	// Dequeue
-	if (dequeue((void **)task_callback_p_p, task->queue) != 0) {
-		fprintf(stderr, "%s:%d: Unable to dequeue!\n", __FILE__, __LINE__);
+	if ((err = dequeue((void **)task_callback_p_p, task->queue)) != 0) {
+		fprintf(stderr, "%s:%d: Unable to dequeue (%d)!\n", __FILE__, 
+			__LINE__, err);
 		return 3;
 	}
 
