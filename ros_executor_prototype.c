@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <inttypes.h>
 #include <math.h>
+#include <time.h>
 
 // Networking
 #include <sys/types.h>
@@ -68,6 +69,9 @@ pid_t g_pid = -1;
 
 // Global scheduling pipe
 int g_sched_pipefd[2] = {-1};
+
+// Global log file 
+FILE *g_log_file;
 
 
 /*
@@ -221,9 +225,22 @@ void task_routine (off_t task_id)
 }
 
 
+struct timespec start, stop;
+
+clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+
+/// do something
+
+clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
+
+double result = (stop.tv_sec - start.tv_sec) * 1e6 + (stop.tv_nsec - start.tv_nsec)
+
+
 void scheduler (uint8_t *message)
 {
 	// Task Stack
+	static bool time_init = false;
+	static struct timespec last, current;
 	static off_t task_stack[MAX_PREEMPTABLE_TASKS];
 	static off_t task_stack_index = 0;
 
@@ -411,6 +428,13 @@ int main (int argc, char *argv[])
 		}
 	}
 
+	// Open up the file 
+	if ((g_log_file = fopen("sched.log", "r")) == NULL) {
+		fprintf(stderr, "%s:%d: Unable to create log file!\n",
+			__FILE__, __LINE__);
+		goto end;
+	}
+
 	// Set scheduler PID
 	g_pid = getpid();
 
@@ -520,6 +544,9 @@ end:
 	{
 		return EXIT_FAILURE;
 	}
+
+	// Close log file
+	close(g_log_file);
 
 	return EXIT_SUCCESS;
 }
