@@ -79,7 +79,7 @@ int main (void)
 	// Dispatch message
 	uint8_t message[3] = {0};
 
-	for (off_t i = 0; i < 3; ++i) {
+	for (off_t i = 0; i < 2; ++i) {
 
 		// Build random sleep time
 		struct timespec delay = (struct timespec) {

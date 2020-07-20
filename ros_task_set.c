@@ -104,27 +104,27 @@ int get_highest_prio_task_index (task_set_t *task_set_p)
 
 		// Don't consider tasks that don't have data
 		if ((curr_data = task_has_data(task_p)) == NULL) {
-			printf("Task %zu has no data -> skipping!\n",i);
+			//printf("Task %zu has no data -> skipping!\n",i);
 			continue;
 		}
 
 		// Set task if none is set
 		if (prio_task_index == -1) {
-			printf("Setting Task %zu as default!\n", i);
+			//printf("Setting Task %zu as default!\n", i);
 			prio_task_index = i;
 			continue;
 		}
 
 		// Compare current task to best
 		if (peek((void **)&best_data, (task_set_p->tasks[prio_task_index]).queue) != 0) {
-			fprintf(stderr, "%s:%d: Priority task has no data!\n",
-				__FILE__, __LINE__);
+			//fprintf(stderr, "%s:%d: Priority task has no data!\n",
+			//	__FILE__, __LINE__);
 			return -1;
 		}
 
 		if (curr_data->prio > best_data->prio) {
-			printf("Task %zu has a higher prio for its next data element than %u\n",
-				i, prio_task_index);
+			//printf("Task %zu has a higher prio for its next data element than %u\n",
+			//	i, prio_task_index);
 			prio_task_index = i;
 		}
 	}
@@ -229,6 +229,38 @@ int dequeue_callback_for_task (off_t task_id, task_callback_t **task_callback_p_
 
 	return 0;
 }
+
+int peek_callback_for_task (off_t task_id, task_callback_t **task_callback_p_p,
+	task_set_t *task_set_p)
+{
+	int err;
+
+	// Parameter check
+	if (task_callback_p_p == NULL || task_set_p == NULL) {
+		fprintf(stderr, "%s:%d: Null parameters!\n", __FILE__, __LINE__);
+		return 1;
+	}
+
+	// Task ID check
+	if (task_id > task_set_p->len) {
+		fprintf(stderr, "%s:%d: Task ID is out of bounds (%lu > %zu)\n",
+			 __FILE__, __LINE__, task_id, task_set_p->len);
+		return 2;
+	}
+
+	// Locate the task
+	task_t *task = task_set_p->tasks + task_id;
+
+	// Dequeue
+	if ((err = peek((void **)task_callback_p_p, task->queue)) != 0) {
+		fprintf(stderr, "%s:%d: Unable to peek (%d)!\n", __FILE__, 
+			__LINE__, err);
+		return 3;
+	}
+
+	return 0;
+}
+
 
 int free_task_callback (task_callback_t *callback_p, task_set_t *task_set_p)
 {

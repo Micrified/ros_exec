@@ -122,9 +122,23 @@ int enqueue_callback_for_task (off_t task_id, uint8_t prio, size_t data_size, vo
  * @return Zero on success; else
  *         1: Either task_callback_data_p_p ir task_set_p is NULL
  *         2: Task ID is out of bounds
- *         3: Unable to dequeue from task
+ *         3: Unable to dequeue from queue
 \*/
 int dequeue_callback_for_task (off_t task_id, task_callback_t **task_callback_p_p,
+	task_set_t *task_set_p);
+
+
+/*\
+ * @brief Returns a pointer to the latest data element for the given task
+ * @param task_id           ID of the task to peek from
+ * @param task_callback_p_p Pointer to location to install task data pointer
+ * @param task_set_p        Task set
+ * @return Zero on success; else
+ *         1: Either task_callback_p_p or task_set_p is NULL
+ *         2: Task ID is out of bounds
+ *         3: Unable to peek from queue
+\*/
+int peek_callback_for_task (off_t task_id, task_callback_t **task_callback_p_p,
 	task_set_t *task_set_p);
 
 /*\

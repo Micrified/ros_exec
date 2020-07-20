@@ -44,14 +44,14 @@ int on_message (int fd, uint8_t *msg_buffer)
 
 	// Expect: Message
 	if (read(fd, message, 3 * sizeof(uint8_t)) != 3) {
-		fprintf(stderr, "%s:%d: Unable to read message!\n",
-			__FILE__, __LINE__);
+		//fprintf(stderr, "%s:%d: Unable to read message!\n",
+		//	__FILE__, __LINE__);
 		return -1;
 	}
 
 	// Print received message
-	fprintf(stdout, "msg {.callback_id = %u, .callback_prio = %u, .data = %u}\n", 
-		message[0], message[1], message[2]);
+	//fprintf(stdout, "msg {.callback_id = %u, .callback_prio = %u, .data = %u}\n", 
+	//	message[0], message[1], message[2]);
 
 	// Copy to message buffer if available
 	if (msg_buffer != NULL) {
