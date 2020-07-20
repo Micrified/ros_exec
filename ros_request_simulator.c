@@ -74,35 +74,48 @@ int main (void)
 	if ((socket = get_connected_socket(addr, port)) == -1) {
 		fprintf(stderr, "Unable to connect!\n");
 		return EXIT_FAILURE;
+	} else {
+		printf("Connected!\n");
 	}
 
 	// Dispatch message
 	uint8_t message[3] = {0};
-
-	for (off_t i = 0; i < 2; ++i) {
-
-		// Build random sleep time
-		struct timespec delay = (struct timespec) {
-           .tv_sec = 0,
-           .tv_nsec = (min_delay + rand() % max_delay) % nano_range_max
-        };
-
-        // Build random message
-        message[0] = i; //rand() % 255 % MAX_TASK_COUNT; // ID
-        message[1] = rand() % 255;                  // prio
-        message[2] = rand() % 255;                  // data
-
-        // Sleep 
-        if (nanosleep(&delay, NULL) != 0) {
-        	fprintf(stderr, "%s:%d: Notice - sleep interrupted!\n", __FILE__, __LINE__);
-        }
-
+	printf("Input is sent as three bytes space separated.\n");
+	printf("Format: <task_id> <task_prio> <task_data>\n");
+	while (1) {
+		printf("> ");
+		scanf("%hhd %hhd %hhd", message, message + 1, message + 2);
 		if (write(socket, message, 3 * sizeof(uint8_t)) != 3) {
 			fprintf(stderr, "%s:%d: Unable to write to socket!\n", __FILE__, __LINE__);
 		} else {
 			fprintf(stdout, "Sent {%u, %u, %u}\n", message[0], message[1], message[2]);
 		}		
 	}
+
+	// for (off_t i = 0; i < 2; ++i) {
+
+	// 	// Build random sleep time
+	// 	struct timespec delay = (struct timespec) {
+ //           .tv_sec = 0,
+ //           .tv_nsec = (min_delay + rand() % max_delay) % nano_range_max
+ //        };
+
+ //        // Build random message
+ //        message[0] = i; //rand() % 255 % MAX_TASK_COUNT; // ID
+ //        message[1] = rand() % 255;                  // prio
+ //        message[2] = rand() % 255;                  // data
+
+ //        // Sleep 
+ //        if (nanosleep(&delay, NULL) != 0) {
+ //        	fprintf(stderr, "%s:%d: Notice - sleep interrupted!\n", __FILE__, __LINE__);
+ //        }
+
+	// 	if (write(socket, message, 3 * sizeof(uint8_t)) != 3) {
+	// 		fprintf(stderr, "%s:%d: Unable to write to socket!\n", __FILE__, __LINE__);
+	// 	} else {
+	// 		fprintf(stdout, "Sent {%u, %u, %u}\n", message[0], message[1], message[2]);
+	// 	}		
+	// }
 
 
 	// Close socket
